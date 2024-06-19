@@ -1,24 +1,23 @@
 import 'dart:collection';
+
 import 'package:flutter/material.dart';
-
-class Item {
-  final String id;
-  String listId;
-  final String title;
-
-  Item({required this.id, required this.listId, required this.title});
-}
+import 'package:managerment/KanbanBoard/floating_widget.dart';
+import 'package:managerment/KanbanBoard/header_widget.dart';
+import 'package:managerment/KanbanBoard/item.dart';
+import 'package:managerment/KanbanBoard/item_widget.dart';
 
 class KanbanBoard extends StatefulWidget {
   final double tileHeight = 100;
   final double headerHeight = 80;
   final double tileWidth = 300;
 
+  const KanbanBoard({super.key});
+
   @override
-  _KanbanState createState() => _KanbanState();
+  State<KanbanBoard> createState() => _KanbanBoardState();
 }
 
-class _KanbanState extends State<KanbanBoard> {
+class _KanbanBoardState extends State<KanbanBoard> {
   LinkedHashMap<String, List<Item>> board = LinkedHashMap();
 
   @override
@@ -44,53 +43,55 @@ class _KanbanState extends State<KanbanBoard> {
 
   buildItemDragTarget(String listId, int targetPosition, double height) {
     return DragTarget<Item>(
-      // ignore: deprecated_member_use
-      onWillAccept: (Item? data) {
-        return data != null && (board[listId]!.isEmpty || data.id != board[listId]?[targetPosition].id);
-      },
-      // ignore: deprecated_member_use
-      onAccept: (Item data) {
-        setState(() {
-          board[data.listId]!.remove(data);
-          data.listId = listId;
-          if (board[listId]!.length > targetPosition) {
-            board[listId]!.insert(targetPosition + 1, data);
-          } else {
-            board[listId]!.add(data);
-          }
-        });
-      },
-      builder: (BuildContext context, List<Item?> data, List<dynamic> rejectedData) {
-        if (data.isEmpty) {
-          return Container(
-            height: height,
-          );
+        onWillAcceptWithDetails: (DragTargetDetails<Item> details) {
+      Item? data = details.data;
+      return (board[listId]!.isEmpty ||
+          data.id != board[listId]?[targetPosition].id);
+    }, onAcceptWithDetails: (DragTargetDetails<Item> details) {
+      Item data = details.data;
+      setState(() {
+        board[data.listId]!.remove(data);
+        data.listId = listId;
+        if (board[listId]!.length > targetPosition) {
+          board[listId]!.insert(targetPosition + 1, data);
         } else {
-          return Column(
-            children: [
-              Container(
-                height: height,
-              ),
-              ...data.map((Item? item) {
-                if (item == null) return Container();
-                return Opacity(
-                  opacity: 0.5,
-                  child: ItemWidget(item: item),
-                );
-              }).toList()
-            ],
-          );
+          board[listId]!.add(data);
         }
-      },
-    );
+      });
+    }, builder:
+            (BuildContext context, List<Item?> data, List<dynamic> rejectData) {
+      if (data.isEmpty) {
+        return Container(
+          height: height,
+        );
+      } else {
+        return Column(
+          children: [
+            Container(
+              height: height,
+            ),
+            ...data.map((Item? item) {
+              if (item == null) {
+                return Container();
+              }
+              return Opacity(
+                opacity: 0.5,
+                child: ItemWidget(item: item),
+              );
+            }).toList()
+          ],
+        );
+      }
+    });
   }
 
-  buildHeader(String listId) {
+  buiderHeader(String listId) {
     Widget header = Container(
       height: widget.headerHeight,
-      child: HeaderWidget(title: listId),
+      child: HeaderWidget(
+        title: listId,
+      ),
     );
-
     return Stack(
       children: [
         Draggable<String>(
@@ -109,27 +110,28 @@ class _KanbanState extends State<KanbanBoard> {
         ),
         buildItemDragTarget(listId, 0, widget.headerHeight),
         DragTarget<String>(
-          onWillAccept: (String? incomingListId) {
+          onWillAcceptWithDetails: (DragTargetDetails<String> details) {
+            String? incomingListId = details.data;
             return listId != incomingListId;
           },
-          onAccept: (String incomingListId) {
-            setState(
-              () {
-                LinkedHashMap<String, List<Item>> reorderedBoard = LinkedHashMap();
-                for (String key in board.keys) {
-                  if (key == incomingListId) {
-                    reorderedBoard[listId] = board[listId]!;
-                  } else if (key == listId) {
-                    reorderedBoard[incomingListId] = board[incomingListId]!;
-                  } else {
-                    reorderedBoard[key] = board[key]!;
-                  }
+          onAcceptWithDetails: (DragTargetDetails<String> details) {
+            String incomingListId = details.data;
+            setState(() {
+              LinkedHashMap<String, List<Item>> reOrderBoard = LinkedHashMap();
+              for (String key in board.keys) {
+                if (key == incomingListId) {
+                  reOrderBoard[listId] = board[listId]!;
+                } else if (key == listId) {
+                  reOrderBoard[incomingListId] = board[incomingListId]!;
+                } else {
+                  reOrderBoard[key] = board[key]!;
                 }
-                board = reorderedBoard;
-              },
-            );
+              }
+              board = reOrderBoard;
+            });
           },
-          builder: (BuildContext context, List<String?> data, List<dynamic> rejectedData) {
+          builder: (BuildContext context, List<String?> data,
+              List<dynamic> rejectData) {
             if (data.isEmpty) {
               return Container(
                 height: widget.headerHeight,
@@ -138,17 +140,13 @@ class _KanbanState extends State<KanbanBoard> {
             } else {
               return Container(
                 decoration: BoxDecoration(
-                  border: Border.all(
-                    width: 3,
-                    color: Colors.blueAccent,
-                  ),
-                ),
+                    border: Border.all(width: 3, color: Colors.blueAccent)),
                 height: widget.headerHeight,
                 width: widget.tileWidth,
               );
             }
           },
-        )
+        ),
       ],
     );
   }
@@ -160,7 +158,7 @@ class _KanbanState extends State<KanbanBoard> {
         scrollDirection: Axis.vertical,
         child: Column(
           children: [
-            buildHeader(listId),
+            buiderHeader(listId),
             ListView.builder(
               scrollDirection: Axis.vertical,
               shrinkWrap: true,
@@ -170,20 +168,24 @@ class _KanbanState extends State<KanbanBoard> {
                   children: [
                     Draggable<Item>(
                       data: items[index],
-                      child: ItemWidget(item: items[index]),
+                      child: ItemWidget(
+                        item: items[index],
+                      ),
                       childWhenDragging: Opacity(
                         opacity: 0.2,
-                        child: ItemWidget(item: items[index]),
+                        child: ItemWidget(
+                          item: items[index],
+                        ),
                       ),
                       feedback: Container(
-                        height: widget.tileHeight,
+                        height: widget.headerHeight,
                         width: widget.tileWidth,
                         child: FloatingWidget(
                           child: ItemWidget(item: items[index]),
                         ),
                       ),
                     ),
-                    buildItemDragTarget(listId, index, widget.tileHeight),
+                    buildItemDragTarget(listId, index, widget.tileHeight)
                   ],
                 );
               },
@@ -195,102 +197,18 @@ class _KanbanState extends State<KanbanBoard> {
 
     return Scaffold(
       backgroundColor: Color.fromRGBO(58, 66, 86, 1.0),
-      appBar: AppBar(title: Text("Kanban test")),
       body: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: board.keys.map((String key) {
+          children: board.keys.map((String key){
             return Container(
               width: widget.tileWidth,
               child: buildKanbanList(key, board[key]!),
             );
-          }).toList(),
+          }).toList()
         ),
       ),
     );
-  }
-}
-
-class HeaderWidget extends StatelessWidget {
-  final String title;
-
-  const HeaderWidget({Key? key, required this.title}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.teal,
-      child: ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: 20.0,
-          vertical: 10.0,
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: Colors.white,
-          ),
-        ),
-        trailing: Icon(
-          Icons.sort,
-          color: Colors.white,
-          size: 30.0,
-        ),
-        onTap: () {},
-      ),
-    );
-  }
-}
-
-class ItemWidget extends StatelessWidget {
-  final Item item;
-
-  const ItemWidget({Key? key, required this.item}) : super(key: key);
-
-  ListTile makeListTile(Item item) => ListTile(
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: 20.0,
-          vertical: 10.0,
-        ),
-        title: Text(
-          item.title,
-          style: TextStyle(
-            color: Colors.white,
-          ),
-        ),
-        subtitle: Text("listId: ${item.listId}"),
-        trailing: Icon(
-          Icons.sort,
-          color: Colors.white,
-          size: 30.0,
-        ),
-        onTap: () {},
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 8.0,
-      margin: new EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Color.fromRGBO(64, 75, 96, .9),
-        ),
-        child: makeListTile(item),
-      ),
-    );
-  }
-}
-
-class FloatingWidget extends StatelessWidget {
-  final Widget child;
-
-  const FloatingWidget({Key? key, required this.child}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return child;
   }
 }
